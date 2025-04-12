@@ -1,0 +1,19 @@
+name: insightface-ray-serve-api
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - opencv
+  - pydantic
+  - fastapi
+  - uvicorn
+  - numpy
+  - pip
+  - pip:
+      - ray[serve]==2.44.1
+      - inspireface
+      - requests
+      - boto3
+      - black==25.1.0
+      - isort==6.0.1
