@@ -1,4 +1,72 @@
-[tool.isort]
-profile = "black"
+[project]
+name = "insightface-ray-serve-api"
+version = "2.0.0"
+description = "Scalable face detection and comparison API on Ray Serve."
+requires-python = ">=3.11,<3.12"
+license = { text = "Apache-2.0" }
+# Pinned to the verified set. FastAPI MUST stay at 0.139.1: Ray Serve's
+# ingress rewriter calls include_router, and FastAPI >= 0.139.2 embeds an
+# unpicklable threading.Lock in _IncludedRouter, breaking deployment.
+# opencv: the headless build needs no libGL in containers; numpy stays on
+# the <2.3 line required by opencv-python-headless 4.12.
+dependencies = [
+    "ray[serve]==2.58.0",
+    "inspireface==1.2.3.post5",
+    "fastapi==0.139.1",
+    "starlette==1.6.0",
+    "uvicorn==0.52.4",
+    "opencv-python-headless==4.12.0.88",
+    "numpy==2.2.6",
+    "pillow==12.3.0",
+    "pydantic==2.13.5",
+    "httpx==0.28.1",
+    "boto3==1.43.89",
+    "opentelemetry-api==1.44.0",
+    "opentelemetry-sdk==1.44.0",
+    "opentelemetry-exporter-otlp==1.44.0",
+]
 
-[tool.black]
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.16.6",
+    "mypy==2.3.1",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF100"]
+ignore = ["A002"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["faceapi"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+show_error_codes = true
+warn_unused_ignores = true
+explicit_package_bases = true
+mypy_path = "src"
+[[tool.mypy.overrides]]
+module = ["inspireface", "boto3", "botocore"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"

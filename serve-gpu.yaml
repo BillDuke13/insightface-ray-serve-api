@@ -1,0 +1,33 @@
+# GPU deployment of the face API. Deploy with:
+#   serve run serve-gpu.yaml      (local: starts its own cluster, blocks)
+#   serve deploy serve-gpu.yaml   (existing GPU cluster)
+# The inference tier takes one GPU per replica; the ingress stays on CPU.
+proxy:
+  location: EveryNode
+
+http_options:
+  host: 0.0.0.0
+  port: 8000
+
+applications:
+  - name: faceapi
+    route_prefix: /
+    import_path: faceapi.serve_app:ingress
+    # No runtime_env: replicas import the installed `faceapi` package.
+    # The container image (or dev env) must have it installed.
+    deployments:
+      - name: FaceInference
+        num_replicas: auto
+        autoscaling_config:
+          min_replicas: 1
+          max_replicas: 4
+          target_ongoing_requests: 2
+        max_ongoing_requests: 16
+        ray_actor_options:
+          num_cpus: 2
+          num_gpus: 1
+      - name: FaceIngress
+        num_replicas: 2
+        max_ongoing_requests: 64
+        ray_actor_options:
+          num_cpus: 1

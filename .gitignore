@@ -105,3 +105,8 @@ cython_debug/
 .ruff_cache/
 
 .pypirc
+
+# Session trajectory exports (aborted-session logs, not repo content)
+trajectory-*.json
+# Agent workflow internals
+.agents/
