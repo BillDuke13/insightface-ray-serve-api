@@ -81,6 +81,18 @@ def _area(box: tuple[int, int, int, int]) -> int:
     return max(0, box[2] - box[0]) * max(0, box[3] - box[1])
 
 
+def _optional_float(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
+def _score(value: Any) -> float | None:
+    """Read a confidence score; the SDK's -1 'uncomputed' sentinel maps to None."""
+    if value is None:
+        return None
+    score = float(value)
+    return None if score < 0 else score
+
+
 class FaceEngine:
     """Detect faces and compare primary faces across images."""
 
@@ -92,11 +104,15 @@ class FaceEngine:
     ) -> None:
         self._settings = settings
         self._lock = threading.Lock()
-        self._detect_session: Any = detect_session or _open_session(
-            _FULL_CAPABILITIES, settings.detection_threshold
+        self._detect_session: Any = (
+            detect_session
+            if detect_session is not None
+            else _open_session(_FULL_CAPABILITIES, settings.detection_threshold)
         )
-        self._compare_session: Any = compare_session or _open_session(
-            _RECOGNITION_ONLY, settings.detection_threshold
+        self._compare_session: Any = (
+            compare_session
+            if compare_session is not None
+            else _open_session(_RECOGNITION_ONLY, settings.detection_threshold)
         )
 
     def detect(
@@ -143,7 +159,8 @@ class FaceEngine:
             if not faces:
                 raise NoFaceError(f"No face detected in {label}.")
             primary = max(faces, key=lambda face: _area(_bbox(face)))
-            if _area(_bbox(primary)) < self._settings.min_face_pixels:
+            box = _bbox(primary)
+            if _area(box) < self._settings.min_face_pixels:
                 raise LowQualityError(f"Primary face in {label} is too small to compare reliably.")
             feature = self._compare_session.face_feature_extract(image, primary)
         if feature is None:
@@ -183,32 +200,13 @@ class FaceEngine:
             landmarks=landmarks,
             landmarks_truncated=truncated,
             embedding=embedding,
-            roll=self._optional_float(face, "roll"),
-            yaw=self._optional_float(face, "yaw"),
-            pitch=self._optional_float(face, "pitch"),
-            quality=self._score(ext, "quality_confidence"),
-            mask_confidence=self._score(ext, "mask_confidence"),
-            liveness_confidence=self._score(ext, "rgb_liveness_confidence"),
-            gender=_tag(GENDER_TAGS, getattr(ext, "gender", None)),
-            age_bracket=_tag(AGE_BRACKET_TAGS, getattr(ext, "age_bracket", None)),
-            race=_tag(RACE_TAGS, getattr(ext, "race", None)),
+            roll=_optional_float(face.roll),
+            yaw=_optional_float(face.yaw),
+            pitch=_optional_float(face.pitch),
+            quality=_score(ext.quality_confidence),
+            mask_confidence=_score(ext.mask_confidence),
+            liveness_confidence=_score(ext.rgb_liveness_confidence),
+            gender=_tag(GENDER_TAGS, ext.gender),
+            age_bracket=_tag(AGE_BRACKET_TAGS, ext.age_bracket),
+            race=_tag(RACE_TAGS, ext.race),
         )
-
-    @staticmethod
-    def _optional_float(obj: Any, name: str) -> float | None:
-        value = getattr(obj, name, None)
-        return None if value is None else float(value)
-
-    @staticmethod
-    def _score(obj: Any, name: str) -> float | None:
-        """Read a confidence score; the SDK's -1 'uncomputed' sentinel maps to None."""
-        value = getattr(obj, name, None)
-        if value is None:
-            return None
-        score = float(value)
-        return None if score < 0 else score
-
-    def assert_usable(self) -> None:
-        """Raise when either native session failed to initialize."""
-        if self._detect_session is None or self._compare_session is None:
-            raise RuntimeError("Face engine sessions are not initialized.")

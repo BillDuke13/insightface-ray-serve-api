@@ -94,12 +94,10 @@ class FaceInference:
 
     async def ping(self) -> str:
         """Lightweight replica check used by ingress readiness."""
-        self._engine.assert_usable()
         return "ok"
 
     async def check_health(self) -> None:
-        """Fail the replica when native sessions are gone."""
-        self._engine.assert_usable()
+        """Replica health: answering proves the event loop is alive."""
 
 
 class RayInferenceClient:
