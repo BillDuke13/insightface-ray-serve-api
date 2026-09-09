@@ -50,8 +50,6 @@ def decode_image(
             rgb = np.asarray(ImageOps.exif_transpose(handle.convert("RGB")))
         except Exception as exc:
             raise BadImageError("Could not decode image data.") from exc
-    if rgb.ndim != 3 or rgb.shape[2] != 3 or rgb.size == 0:
-        raise BadImageError("Could not decode image data.")
     longest = max(rgb.shape[0], rgb.shape[1])
     if longest > max_dimension:
         scale = max_dimension / longest

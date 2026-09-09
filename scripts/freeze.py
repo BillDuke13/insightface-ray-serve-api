@@ -35,10 +35,7 @@ def main() -> int:
     for name in names:
         if name.lower() in EVAL_ONLY:
             continue
-        try:
-            lines.append(f"{name}=={metadata.version(name)}")
-        except Exception as exc:  # pragma: no cover - defensive, shouldn't happen
-            print(f"skip {name}: {exc}", file=sys.stderr)
+        lines.append(f"{name}=={metadata.version(name)}")
     Path("requirements.lock").write_text("\n".join(lines) + "\n")
     print(f"wrote requirements.lock with {len(lines) - 1} entries")
     return 0

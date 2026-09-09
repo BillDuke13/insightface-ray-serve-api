@@ -15,7 +15,7 @@ import base64
 import ipaddress
 import logging
 import socket
-from typing import Any
+from typing import Any, assert_never
 from urllib.parse import urlparse
 
 import boto3
@@ -26,8 +26,6 @@ from faceapi.errors import BadImageError, ImageFetchError, ImageTooLargeError
 from faceapi.schemas import Base64Image, ImageSource, UrlImage
 
 logger = logging.getLogger(__name__)
-
-METADATA_IP = "169.254.169.254"
 
 
 def _looks_private(host: str) -> bool:
@@ -85,9 +83,7 @@ class ImageLoader:
             return self._load_base64(source)
         if isinstance(source, UrlImage):
             return await self._load_url(source.url)
-        raise BadImageError(
-            f"Unsupported image source: {type(source).__name__}."
-        )  # pragma: no cover
+        assert_never(source)
 
     def _load_base64(self, source: Base64Image) -> bytes:
         data = base64.b64decode("".join(source.data.split()), validate=True)
@@ -133,7 +129,7 @@ class ImageLoader:
             raise BadImageError("Image URL must include a host.")
         if self._settings.allow_private_hosts:
             return
-        if host == METADATA_IP or _looks_private(host):
+        if _looks_private(host):
             raise BadImageError("Image URL host is not allowed.")
         if not await _resolve_is_global(host):
             raise BadImageError("Image URL host is not allowed.")
@@ -156,8 +152,6 @@ class ImageLoader:
                         if received > limit:
                             raise ImageTooLargeError(f"Image exceeds the {limit} byte limit.")
                         chunks.append(chunk)
-        except ImageTooLargeError:
-            raise
         except TimeoutError:
             logger.warning("image fetch timed out: host=%s", urlparse(url).hostname)
             raise ImageFetchError("Could not download the image.") from None
