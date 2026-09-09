@@ -20,6 +20,7 @@ from starlette.responses import Response
 REQUEST_ID_HEADER = "X-Request-ID"
 
 _request_id_ctx: ContextVar[str] = ContextVar("faceapi_request_id", default="-")
+_configured = False
 
 
 def get_request_id() -> str:
@@ -66,16 +67,14 @@ def setup_logging(level: str = "INFO") -> None:
     Only this package's logger is configured; the root logger and its
     handlers (Ray's, uvicorn's) are left untouched.
     """
+    global _configured
     faceapi = logging.getLogger("faceapi")
-    if any(
-        isinstance(h, logging.StreamHandler) and isinstance(h.formatter, JsonFormatter)
-        for h in faceapi.handlers
-    ):
-        faceapi.setLevel(level)
+    faceapi.setLevel(level)
+    if _configured:
         return
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
     faceapi.handlers.clear()
     faceapi.addHandler(handler)
-    faceapi.setLevel(level)
     faceapi.propagate = False
+    _configured = True

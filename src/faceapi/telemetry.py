@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 
 from faceapi.config import Settings
 
@@ -38,8 +38,7 @@ def init_telemetry(settings: Settings) -> None:
 def start_span(name: str) -> Iterator[None]:
     """Open a span when tracing is initialized, else do nothing."""
     if not _initialized:
-        with nullcontext():
-            yield
+        yield
         return
     from opentelemetry import trace
 

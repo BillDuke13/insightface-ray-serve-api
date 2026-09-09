@@ -88,12 +88,7 @@ class FaceService:
                 data = await self._loader.load(request.image)
             timer.mark("fetch_ms")
             with start_span("decode_image"):
-                image = await asyncio.to_thread(
-                    decode_image,
-                    data,
-                    max_dimension=self._settings.max_image_dimension,
-                    max_pixels=self._settings.max_image_pixels,
-                )
+                image = await self._decode_image(data)
             timer.mark("decode_ms")
             options = DetectOptions(
                 include_embedding=request.include_embedding,
@@ -124,18 +119,8 @@ class FaceService:
             timer.mark("fetch_ms")
             with start_span("decode_images"):
                 first, second = await asyncio.gather(
-                    asyncio.to_thread(
-                        decode_image,
-                        first_bytes,
-                        max_dimension=self._settings.max_image_dimension,
-                        max_pixels=self._settings.max_image_pixels,
-                    ),
-                    asyncio.to_thread(
-                        decode_image,
-                        second_bytes,
-                        max_dimension=self._settings.max_image_dimension,
-                        max_pixels=self._settings.max_image_pixels,
-                    ),
+                    self._decode_image(first_bytes),
+                    self._decode_image(second_bytes),
                 )
             timer.mark("decode_ms")
             with start_span("inference.compare"):
@@ -143,6 +128,15 @@ class FaceService:
             timer.mark("inference_ms")
             logger.info("compare done: similarity=%.4f %s", response.similarity, timer.summary())
             return response
+
+    async def _decode_image(self, data: bytes) -> npt.NDArray[Any]:
+        """Decode bytes off the event loop with the configured size caps."""
+        return await asyncio.to_thread(
+            decode_image,
+            data,
+            max_dimension=self._settings.max_image_dimension,
+            max_pixels=self._settings.max_image_pixels,
+        )
 
     async def _fetch_one(self, source: ImageSource, label: str) -> bytes:
         started = time.perf_counter()
@@ -159,8 +153,6 @@ class FaceService:
         """Verify inference replicas answer; raise 503 when they don't."""
         try:
             await asyncio.wait_for(self._inference.ping(), timeout_s)
-        except TimeoutError as exc:
-            raise UnavailableError("Inference replicas are not ready.") from exc
         except UnavailableError:
             raise
         except Exception as exc:
