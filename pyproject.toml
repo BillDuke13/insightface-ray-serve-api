@@ -21,6 +21,10 @@ dependencies = [
     "pydantic==2.13.5",
     "httpx==0.28.1",
     "boto3==1.43.89",
+    # ray.serve imports jinja2 at module level (haproxy.py) but no longer
+    # declares it in the `serve` extra; without this pin a fresh install
+    # cannot even `import ray.serve`.
+    "jinja2==3.1.6",
     "opentelemetry-api==1.44.0",
     "opentelemetry-sdk==1.44.0",
     "opentelemetry-exporter-otlp==1.44.0",
