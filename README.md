@@ -1,210 +1,114 @@
 # InsightFace Ray Serve API
 
-A scalable REST API for face detection, attribute extraction, and comparison, powered by [InsightFace](https://github.com/deepinsight/insightface) and [Ray Serve](https://docs.ray.io/en/latest/serve/index.html).
+A production-grade REST API for face detection, attribute extraction, and
+1:1 comparison, powered by [InspireFace](https://github.com/HyperInspire/InspireFace)
+and [Ray Serve](https://docs.ray.io/en/latest/serve/index.html).
 
-## Overview
+## Architecture
 
-This project provides a production-ready REST API for face analysis tasks, deployed using Ray Serve for automatic scaling. The API supports:
+Two tiers, one concern each:
 
-- Face detection and landmark extraction
-- Face attribute analysis (gender, age, race)
-- Face quality and mask detection
-- Face comparison (similarity scoring)
+- **FaceIngress** (CPU): HTTP, validation, image fetching, preprocessing.
+- **FaceInference** (CPU/GPU): native sessions with dynamic request batching,
+  called over a Serve handle. Detection uses a full-capability session;
+  comparison uses a recognition-only session.
 
-The service accepts images via base64 encoding or URLs (including S3 storage) and returns detailed information about detected faces.
+See [docs/api.md](docs/api.md) for endpoints, [docs/baseline.md](docs/baseline.md)
+for measured performance, and [docs/migration.md](docs/migration.md) for v1→v2
+breaking changes.
 
-## Features
+## Quickstart
 
-- **Scalable deployment**: Uses Ray Serve's autoscaling to handle variable loads
-- **Multiple image input methods**: Support for base64-encoded images and URLs (HTTP/HTTPS/S3)
-- **Comprehensive face analysis**: Detects and analyzes multiple faces in a single image
-- **Face comparison**: Compares faces from two different images for similarity
-- **Health check endpoint**: Monitors service status
-
-## Installation
-
-### Prerequisites
-
-- Python 3.11+
-- OpenCV
-- CUDA support (recommended for production deployments)
-
-### Setup with Conda
-
-The recommended way to set up the environment is using Conda:
+Prerequisites: conda, Python 3.11.
 
 ```bash
-# Clone the repository
-git clone https://github.com/BillDuke13/insightface-ray-serve-api.git
-cd insightface-ray-serve-api
-
-# Create and activate the conda environment
 conda env create -f environment.yml
 conda activate insightface-ray-serve-api
+
+serve run serve-cpu.yaml
 ```
 
-### Manual Setup
-
-If you prefer not to use Conda, you can install the dependencies manually:
+Or with Docker:
 
 ```bash
-pip install ray[serve]==2.44.1 inspireface fastapi uvicorn opencv-python numpy pydantic requests boto3
+docker build -t faceapi:cpu .
+docker run --rm --shm-size=2g -p 8000:8000 faceapi:cpu
 ```
 
-## Usage
-
-### Starting the API Server
-
-To start the API server:
+Smoke test:
 
 ```bash
-python -m ray.serve run src.api:app_instance
+curl localhost:8000/-/readyz
+curl localhost:8000/v2/models/insightface:detect \
+  -H 'content-type: application/json' \
+  -d '{"image": {"type": "url", "url": "https://example.com/a.jpg"}}'
 ```
 
-This will start the server on the default port (8000). You can customize the port and other Ray Serve configuration parameters as needed.
+### First start downloads models
 
-### API Endpoints
+InspireFace fetches its model pack from ModelScope on first session start;
+this needs outbound network access and can take a while on slow links. The
+download caches under `~/.inspireface` (in the container:
+`/root/.inspireface`) and is reused on later starts. The Docker image's
+`HEALTHCHECK` grants a 120s start period for this; raise it with
+`--health-start-period` on slow links. A plain `docker run --rm` discards
+the cache with the container — mount a volume at `/root/.inspireface`, or
+pre-seed a long-lived container with `docker cp` from a warm cache, to avoid
+re-downloading on every start.
 
-The API provides the following endpoints:
+## Configuration
 
-#### Face Detection and Attribute Extraction
+All behavior knobs are environment variables (see `src/faceapi/config.py`):
 
-```
-POST /v1/models/insightface:detect
-```
+| Variable | Default | Meaning |
+|---|---|---|
+| `FACEAPI_MAX_IMAGE_BYTES` | 10485760 | largest accepted image |
+| `FACEAPI_FETCH_TIMEOUT_S` / `FACEAPI_CONNECT_TIMEOUT_S` | 10 / 3 | URL fetch timeouts (overall deadline and connect) |
+| `FACEAPI_S3_PRESIGN_TTL_S` | 300 | presigned URL lifetime |
+| `FACEAPI_ALLOW_PRIVATE_HOSTS` | false | allow non-public URL hosts (tests only) |
+| `FACEAPI_DETECTION_THRESHOLD` | 0.5 | detector confidence cutoff |
+| `FACEAPI_MIN_FACE_PIXELS` | 1600 | smallest comparable face area |
+| `FACEAPI_MAX_FACES` | 50 | cap on faces per image |
+| `FACEAPI_MAX_IMAGE_DIMENSION` | 1920 | longest-edge downscale cap |
+| `FACEAPI_MAX_IMAGE_PIXELS` | 16777216 | total pixel cap, checked before decode (413 beyond) |
+| `FACEAPI_MAX_LANDMARKS` | 106 | landmark points cap |
+| `FACEAPI_MAX_INGRESS_CONCURRENCY` | 32 | per-replica guard (429 beyond) |
+| `FACEAPI_LOG_LEVEL` | INFO | log verbosity |
+| `FACEAPI_OTEL_ENABLED` | false | OTLP tracing (endpoint via `OTEL_*`) |
 
-Detects faces in an image and extracts detailed attributes for each face.
+Scaling and resources live in `serve-cpu.yaml` / `serve-gpu.yaml`.
 
-#### Face Comparison
+## Deployment
 
-```
-POST /v1/models/insightface:compare
-```
+- CPU: `serve run serve-cpu.yaml` (local) or `serve deploy serve-cpu.yaml`
+  (existing cluster).
+- GPU: `serve run serve-gpu.yaml` on a GPU cluster. The inference tier takes
+  one GPU per replica; InspireFace GPU execution needs the CUDA/TensorRT
+  resource bundle on the node (see the InspireFace repo). The GPU YAML is
+  schema-validated; GPU execution itself was not run in this environment.
+- Probes: liveness `GET /-/healthz` (answered by the Serve proxy),
+  readiness `GET /-/readyz` (answered by the app after an inference ping).
+- Deployment-level request metrics come from Ray Serve; the app adds
+  request IDs, JSON logs with per-stage timings, and optional OTel spans.
 
-Compares the primary faces from two images and returns a similarity score.
+## Development
 
-#### Health Check
-
-```
-GET /-/healthz
-```
-
-Returns the health status of the API.
-
-### Example API Requests
-
-#### Face Detection with Base64 Image
-
-```python
-import requests
-import base64
-
-# Read an image file and convert to base64
-with open("image.jpg", "rb") as f:
-    image_bytes = f.read()
-    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-
-# Make the API request
-response = requests.post(
-    "http://localhost:8000/v1/models/insightface:detect",
-    json={"image_base64": image_base64}
-)
-
-# Process the response
-faces = response.json()["faces"]
-print(f"Detected {len(faces)} faces")
-for i, face in enumerate(faces):
-    print(f"Face {i+1}:")
-    print(f"  - Confidence: {face['confidence']:.4f}")
-    if face.get('gender'):
-        print(f"  - Gender: {face['gender']}")
-    if face.get('age_bracket'):
-        print(f"  - Age bracket: {face['age_bracket']}")
+```bash
+ruff check src/faceapi tests scripts
+ruff format --check src/faceapi tests scripts
+mypy src/faceapi tests scripts
+pytest
 ```
 
-#### Face Detection with Image URL
+CI runs the same gates on every push. Dependencies are pinned in
+`pyproject.toml` with a full transitive `requirements.lock`; regenerate it
+with `python scripts/freeze.py` after changing the working set.
 
-```python
-import requests
-
-# Make the API request with an image URL
-response = requests.post(
-    "http://localhost:8000/v1/models/insightface:detect",
-    json={"image_url": "https://example.com/image.jpg"}
-)
-
-# Process the response
-faces = response.json()["faces"]
-```
-
-#### Face Comparison
-
-```python
-import requests
-
-# Compare faces from two image URLs
-response = requests.post(
-    "http://localhost:8000/v1/models/insightface:compare",
-    json={
-        "image1_url": "https://example.com/person1.jpg",
-        "image2_url": "https://example.com/person2.jpg"
-    }
-)
-
-# Get the similarity score
-similarity = response.json()["similarity"]
-print(f"Similarity score: {similarity:.4f}")
-```
-
-## API Reference
-
-### Detection Response Format
-
-The response from the detection endpoint includes the following information for each detected face:
-
-```json
-{
-  "faces": [
-    {
-      "bounding_box": [x1, y1, x2, y2],
-      "confidence": 0.99,
-      "landmarks": [[x1, y1], [x2, y2], ...],
-      "feature": [0.1, 0.2, ...],
-      "roll": 2.5,
-      "yaw": 1.3,
-      "pitch": 0.7,
-      "quality": 0.98,
-      "mask_confidence": 0.01,
-      "liveness_confidence": 0.96,
-      "gender": "Female",
-      "age_bracket": "20-29 years old",
-      "race": "Asian"
-    },
-    ...
-  ]
-}
-```
-
-### Comparison Response Format
-
-The response from the comparison endpoint includes:
-
-```json
-{
-  "similarity": 0.85
-}
-```
-
-The similarity score ranges from 0 to 1, where higher values indicate greater similarity between the faces.
-
-## Performance Considerations
-
-- The service automatically scales based on load, but initial requests may be slower due to model loading
-- For production deployment, consider:
-  - Using CUDA-enabled devices for improved performance
-  - Adjusting the `min_replicas` parameter for consistent response times
-  - Monitoring memory usage, especially with multiple parallel requests
+Version pairing constraint: FastAPI must stay at 0.139.1 — Ray Serve's
+ingress rewriter calls `include_router`, and FastAPI ≥ 0.139.2 embeds an
+unpicklable lock there, breaking deployment. The pin carries a comment in
+`pyproject.toml`; upgrade only after re-verifying `serve run` end to end.
 
 ## License
 
-This project is licensed under the terms of the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+Apache License 2.0. See [LICENSE](LICENSE).
