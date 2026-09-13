@@ -36,6 +36,7 @@ def decode_image(
     Raises:
         BadImageError: If the bytes are not a decodable image.
         ImageTooLargeError: If the declared pixel count exceeds ``max_pixels``.
+
     """
     if not data:
         raise BadImageError("Image data is empty.")
