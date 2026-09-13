@@ -19,11 +19,12 @@ breaking changes.
 
 ## Quickstart
 
-Prerequisites: conda, Python 3.11.
+Prerequisites: [uv](https://docs.astral.sh/uv/), Python 3.11.
 
 ```bash
-conda env create -f environment.yml
-conda activate insightface-ray-serve-api
+uv venv --python 3.11
+source .venv/bin/activate
+uv pip install -e ".[dev]"
 
 serve run serve-cpu.yaml
 ```
@@ -93,6 +94,8 @@ Scaling and resources live in `serve-cpu.yaml` / `serve-gpu.yaml`.
 
 ## Development
 
+With the venv activated:
+
 ```bash
 ruff check src/faceapi tests scripts
 ruff format --check src/faceapi tests scripts
@@ -103,6 +106,14 @@ pytest
 CI runs the same gates on every push. Dependencies are pinned in
 `pyproject.toml` with a full transitive `requirements.lock`; regenerate it
 with `python scripts/freeze.py` after changing the working set.
+
+Conventions: every module and public class or function carries a one-line
+docstring (`decode_image` in `src/faceapi/preprocess.py` shows the
+`Args`/`Raises` shape for the rare longer case); `__init__`, Protocol `...`
+stubs, and framework-hook overrides are exempt. Comments explain why, never
+what; no commented-out code. Keep modules small (guide: ≤300 lines,
+functions ≤60 lines) — split the module or justify the exception in review
+when a change crosses it. Behavior changes must keep the gates above green.
 
 Version pairing constraint: FastAPI must stay at 0.139.1 — Ray Serve's
 ingress rewriter calls `include_router`, and FastAPI ≥ 0.139.2 embeds an

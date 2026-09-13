@@ -1,7 +1,9 @@
 """Ray Serve wiring: inference deployment plus FastAPI ingress deployment.
 
-Scaling, resources, and batching defaults live here; production overrides
-live in ``serve-cpu.yaml`` / ``serve-gpu.yaml``. Deploy with::
+Replica-count defaults live here (``num_replicas=1``); production scaling
+and resources live in ``serve-cpu.yaml`` / ``serve-gpu.yaml``. Request
+batching is configured here too (``@serve.batch``) and has no YAML
+override. Deploy with::
 
     serve run serve-cpu.yaml     # or serve-gpu.yaml on GPU nodes
 
@@ -107,6 +109,7 @@ class RayInferenceClient:
         self._handle = handle
 
     async def detect(self, image: npt.NDArray[Any], options: DetectOptions) -> DetectionResponse:
+        """Detect via the Serve handle, re-raising error slots as exceptions."""
         result: DetectionResponse | FaceAPIError = await self._handle.detect_batch.remote(
             DetectJob(image, options)
         )
@@ -115,12 +118,14 @@ class RayInferenceClient:
         return result
 
     async def compare(self, pair: ImagePair) -> ComparisonResponse:
+        """Compare via the Serve handle, re-raising error slots as exceptions."""
         result: ComparisonResponse | FaceAPIError = await self._handle.compare_batch.remote(pair)
         if isinstance(result, FaceAPIError):
             raise result
         return result
 
     async def ping(self) -> None:
+        """Probe inference replicas; failure means not ready."""
         await self._handle.ping.remote()
 
 

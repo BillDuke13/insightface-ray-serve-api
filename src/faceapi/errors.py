@@ -87,6 +87,7 @@ class UnavailableError(FaceAPIError):
 
 
 def build_error_body(code: str, message: str, request_id: str) -> dict[str, str]:
+    """Build the uniform ``code``/``message``/``request_id`` error envelope."""
     return {"code": code, "message": message, "request_id": request_id}
 
 

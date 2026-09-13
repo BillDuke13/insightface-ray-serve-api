@@ -53,7 +53,8 @@ Request:
 - `include_embedding` (default `false`): attach the 512-d embedding vector.
 - `include_landmarks` (default `true`): attach landmark points (capped at
   `FACEAPI_MAX_LANDMARKS`, overflow flagged by `landmarks_truncated`).
-- `max_faces`: per-request cap, clamped by `FACEAPI_MAX_FACES`.
+- `max_faces`: per-request cap between 1 and 200 (400 outside that range),
+  further clamped by `FACEAPI_MAX_FACES`.
 
 Response:
 

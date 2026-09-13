@@ -55,9 +55,11 @@ class StageTimer:
         self._stages: dict[str, float] = {}
 
     def mark(self, stage: str) -> None:
+        """Record milliseconds elapsed since the previous mark."""
         now = time.perf_counter()
         self._stages[stage] = (now - self._started) * 1000
         self._started = now
 
     def summary(self) -> str:
+        """Render recorded stages as a space-separated log fragment."""
         return " ".join(f"{name}={ms:.1f}ms" for name, ms in self._stages.items())

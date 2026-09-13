@@ -69,7 +69,7 @@ class DetectRequest(BaseModel):
         default=None,
         ge=1,
         le=200,
-        description="Cap on faces returned, newest API default otherwise.",
+        description="Cap on faces returned; server default applies when omitted.",
     )
 
 

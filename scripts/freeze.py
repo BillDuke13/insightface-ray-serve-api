@@ -30,6 +30,7 @@ HEADER = """\
 
 
 def main() -> int:
+    """Write the sorted transitive pin list to requirements.lock."""
     names = sorted({d.metadata["Name"] for d in metadata.distributions()})
     lines = [HEADER.rstrip()]
     for name in names:
