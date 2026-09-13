@@ -74,6 +74,7 @@ class ImageLoader:
         self._s3: Any = None
 
     async def aclose(self) -> None:
+        """Close the HTTP client when this loader created it."""
         if self._owns_client:
             await self._client.aclose()
 

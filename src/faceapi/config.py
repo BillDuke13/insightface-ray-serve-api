@@ -1,7 +1,7 @@
 """Runtime configuration loaded from environment variables.
 
 Every operational threshold lives here instead of being hardcoded at call
-sites. Serve-level settings (replicas, batch sizes) live in the serve YAML
+sites. Serve-level settings (replicas, resources) live in the serve YAML
 files; this module covers request handling and inference behavior.
 """
 

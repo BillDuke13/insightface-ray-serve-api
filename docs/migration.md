@@ -31,7 +31,7 @@ v2 uses a discriminated image source:
 ```
 
 New detect options: `include_embedding` (default false), `include_landmarks`
-(default true), `max_faces`.
+(default true), `max_faces` (1–200, further clamped by `FACEAPI_MAX_FACES`).
 
 ## Response shapes
 

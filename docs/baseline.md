@@ -2,9 +2,11 @@
 
 Environment: macOS ARM64 (Mac mini), CPU-only, conda env `insightface-ray-serve-api`
 (Python 3.11, Ray 2.58). Probe image: `lena.jpg` 512x512 (1 face). Same probe
-shape and concurrency for every row unless noted.
+shape and concurrency for every row unless noted. (The numbers were measured in
+a conda env; the project has since moved to uv — see the README. Rerun before
+treating them as current.)
 
-## v1 (legacy `src/api.py`)
+## v1 (legacy `src/api.py`, removed in v2)
 
 | Metric | Value |
 |---|---|
