@@ -107,13 +107,14 @@ CI runs the same gates on every push. Dependencies are pinned in
 `pyproject.toml` with a full transitive `requirements.lock`; regenerate it
 with `python scripts/freeze.py` after changing the working set.
 
-Conventions: every module and public class or function carries a one-line
-docstring (`decode_image` in `src/faceapi/preprocess.py` shows the
-`Args`/`Raises` shape for the rare longer case); `__init__`, Protocol `...`
-stubs, and framework-hook overrides are exempt. Comments explain why, never
-what; no commented-out code. Keep modules small (guide: ≤300 lines,
-functions ≤60 lines) — split the module or justify the exception in review
-when a change crosses it. Behavior changes must keep the gates above green.
+Conventions: in `src/faceapi` and `scripts`, every module and public class
+or function carries a one-line docstring (`decode_image` in
+`src/faceapi/preprocess.py` shows an `Args`/`Raises` shape for the rare
+longer case); `__init__`, Protocol `...` stubs, and framework-hook overrides
+are exempt, and tests need no docstrings. Comments explain why, never what;
+no commented-out code. Keep modules small (guide: ≤300 lines, functions ≤60
+lines) — split the module or justify the exception in review when a change
+crosses it. Behavior changes must keep the gates above green.
 
 Version pairing constraint: FastAPI must stay at 0.139.1 — Ray Serve's
 ingress rewriter calls `include_router`, and FastAPI ≥ 0.139.2 embeds an
